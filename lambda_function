@@ -1,8 +1,7 @@
-import math
-import datetime
 import time
 import os
 import logging
+import requests
 
 
 """--- logger create log object which stores all infor---"""
@@ -10,6 +9,15 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 
+""""---Django url ---"""
+def get_url():
+
+    django_url = "https://41c50a120045.ngrok.io/patient/"
+    r = requests.get(django_url)
+    patientData = r.json()
+    return patientData
+
+''''---  ---'''
 def get_slots(intent_request):
     return intent_request['currentIntent']['slots']
 
@@ -50,6 +58,7 @@ def delegate(session_attributes, slots):
     }
 
 
+
 """--- Helper function---"""
 
 
@@ -65,54 +74,59 @@ def build_validation_result(is_valid, violated_slot, message_content):
         'violatedSlot': violated_slot,
         'message': {'contentType': 'PlainText', 'content': message_content}
     }
-#
-# def validate_postalcode(patientAddressCode):
-#     postalCodes = ['111111', '222222', '333333']
-#     if patientAddressCode is not None and patientAddressCode not in postalCodes:
-#         return False
-#     else:
-#         return True
 
-def validate_nric(patientNRIC):
+def validate_postalcode(patientsAddress):
+    patientData = get_url()
+    patientsAddress = str(patientsAddress)
+    for i in range(len(patientData)):
+        #patient[i] gets the list value
+        if  patientData[i]['patientAddress'] == patientsAddress:
+            return True
+        elif i == len(patientData) - 1:
+            return False
+
+def validate_nric(patientsNRIC):
+    patientData = get_url()
     prefixList = ["s", "t", "f", "g"]
-    # if len(patientNRIC) == 9 and patientNRIC[0] in prefixList and patientNRIC[8].isalpha():
-    #     return build_validation_result(True, None, None)
-    if len(patientNRIC) != 9 or patientNRIC[0].lower() not in prefixList or patientNRIC[
-        8].isalpha() == False:
-        return False
-    else:
-        return True
+    for i in range(len(patientData)):
+        #patient[i] gets the list value
+        if  patientData[i]['patientNRIC'].lower() == patientsNRIC.lower():
+            return True
+        elif len(patientsNRIC) != 9 or patientsNRIC[0].lower() not in prefixList or patientsNRIC[
+        8].isalpha() == False or i == len(patientData) - 1:
+            return False
 
-def validate_name(patientName):
-    names = ['john', 'jane', 'jenny']
-    if patientName is not None and patientName.lower() not in names:
-        return False
-    else:
-        return True
+def validate_name(patientsName):
+    patientData = get_url()
+    #To check if the name matches the database
+    for i in range(len(patientData)):
+        #patient[i] gets the list value
+        if patientData[i]['patientName'].lower() == patientsName.lower():
+            return True
+        elif i == len(patientData) - 1:
+            return False
 
 
-def validate_credentials(patientName,patientNRIC):
-    if patientName is not None:
-        if not validate_name(patientName):
+def validate_credentials(patientsName,patientsNRIC,patientsAddress):
+    if patientsName is not None:
+        if not validate_name(patientsName):
             return build_validation_result(False, 'patientName',
-                                       'Sorry we cannot find {}'.format(patientName))
+                                       'Sorry we cannot find {}'.format(patientsName))
 
-    if patientNRIC is not None:
-        if not validate_nric(patientNRIC):
+    if patientsNRIC is not None:
+        if not validate_nric(patientsNRIC):
             return build_validation_result(
             False,
             "patientNRIC",
             'NRIC should have total of 9 characters, the first letter should include [s,t,f,g],and the last letter should be alphabet. Please check and try again'.format(
-                patientNRIC))
+                patientsNRIC))
 
     # patientAddressCode = str(patientAddressCode)
-    # if patientAddressCode is not None:
-    #     if not validate_postalcode(patientAddressCode):
-    #         return build_validation_result(False,
-    #                                        "patientAddressCode","Your code enter is not valid or wrong")
+    if patientsAddress is not None:
+        if not validate_postalcode(patientsAddress):
+            return build_validation_result(False,
+                                           "patientAddressCode","Your code enter is not valid or wrong")
     return build_validation_result(True, None, None)
-
-
 
 
     """ --- Intents --- """
@@ -154,7 +168,7 @@ def authentication(intent_request):
         # Perform basic validation on the supplied input slots.
         # Use the elicitSlot dialog action to re-prompt for the first violation detected.
 
-        validation_result = validate_credentials(patientName,patientNRIC)
+        validation_result = validate_credentials(patientName,patientNRIC,patientAddressCode)
         if not validation_result['isValid']:
             slots[validation_result['violatedSlot']] = None
             return elicit_slot(intent_request['sessionAttributes'],
