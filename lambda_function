@@ -3,44 +3,56 @@ import os
 import logging
 import requests
 
-
 """--- logger create log object which stores all infor---"""
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-
 """"---Django url ---"""
-def get_patient(patientsName,patientsNRIC):
-    params = {'patientName':patientsName,'patientNRIC':patientsNRIC}
-    django_url = "11257ba78a49.ngrok.io/bynricandname/"
-    patient_data = requests.get(django_url,params=params)
-    patient_data = patient_data.json()
-    return patient_data
 
-def get_patient_by_name(patientsName):
-    params = {'patientName':patientsName}
-    django_url = "11257ba78a49.ngrok.io/byname/"
-    patient_data = requests.get(django_url,params=params)
-    patient_data = patient_data.json()
-    return patient_data
 
-def get_patient_by_nric(patientsNRIC):
-    params = {'patientNRIC':patientsNRIC}
-    django_url = "11257ba78a49.ngrok.io/bynric/"
-    patient_data = requests.get(django_url,params=params)
-    patient_data = patient_data.json()
-    return patient_data
+def by_nric_name(patientNRIC, patientName):
+    if patientNRIC is None or patientName is None:
+        return False
+    patientName = patientName.capitalize()
+    patientNRIC = patientNRIC.upper()
+    params = {'patientNRIC': patientNRIC, 'patientName': patientName}
+    django_url = "https://5aba30870df4.ngrok.io/bynricandname/"
+    if requests.get(django_url, params=params):
+        return True
+    else:
+        return False
 
-def get_patient_by_code(patientsAddressCode):
-    params = {'patientAddress':patientsAddressCode}
-    django_url = "11257ba78a49.ngrok.io/bycode/"
-    patient_data = requests.get(django_url,params=params)
-    patient_data = patient_data.json()
-    return patient_data
+
+def by_name_code(patientsName, patientsAddressCode):
+    if patientsName is None or patientsAddressCode is None:
+        return False
+    patientsName = patientsName.capitalize()
+    params = {'patientName': patientsName, 'patientAddress': patientsAddressCode}
+    django_url = "https://5aba30870df4.ngrok.io/bynameandaddress/"
+    if requests.get(django_url, params=params):
+        return True
+    else:
+        return False
+
+
+def by_nric_code(patientNRIC, patientAddressCode):
+    # if patientsNRIC is None or patientsAddressCode is None:
+    #     print("Both nric and code not none")
+    patientsNRIC = patientNRIC.upper()
+    params = {'patientNRIC': patientNRIC, 'patientAddress': patientAddressCode}
+    django_url = "https://5aba30870df4.ngrok.io/bynricandaddress/"
+    if requests.get(django_url, params=params):
+        return True
+    else:
+        return False
+
 
 ''''---  ---'''
+
+
 def get_slots(intent_request):
     return intent_request['currentIntent']['slots']
+
 
 def elicit_slot(session_attributes, intent_name, slots, slot_to_elicit, message):
     return {
@@ -54,6 +66,7 @@ def elicit_slot(session_attributes, intent_name, slots, slot_to_elicit, message)
         }
     }
 
+
 def close(session_attributes, fulfillment_state, message):
     response = {
         'sessionAttributes': session_attributes,
@@ -66,16 +79,9 @@ def close(session_attributes, fulfillment_state, message):
 
     return response
 
-def delegate(session_attributes, slots):
-    return {
-        'sessionAttributes': session_attributes,
-        'dialogAction': {
-            'type': 'Delegate',
-            'slots': slots
-        }
-    }
 
 """--- Helper function---"""
+
 
 def build_validation_result(is_valid, violated_slot, message_content):
     if message_content is None:
@@ -91,38 +97,187 @@ def build_validation_result(is_valid, violated_slot, message_content):
     }
 
 
-def validate_nric_name(patientsName,patientsNRIC,patientsAddressCode):
-    if patientsName is not None and patientsNRIC is not None:
-        patientsName = patientsName.capitalize()
-        patientsNRIC = patientsNRIC.upper()
-        patient_data = get_patient(patientsName,patientsNRIC)
-        patient_by_name = get_patient_by_name(patientsName)
-        patient_by_nric = get_patient_by_nric(patientsNRIC)
-
-        if patient_data:
+def validate_nric(patientNRIC):
+    prefixList = ["S", "T", "F", "G"]
+    if patientNRIC:
+        patientNRIC = patientNRIC.upper()
+        if (len(patientNRIC) == 9) and (patientNRIC[0] in prefixList) and (patientNRIC[8].isalpha()):
             return build_validation_result(True, None, None)
-        elif len(patient_by_nric) != 0:
-            if patient_by_nric[0]['patientNRIC'].lower() == patientsNRIC.lower():
-                return {'isValid': True}
-    #         # print('only patientNRIC is correct,elicit next slot to verify postal code')
-        elif len(patient_by_name) != 0:
-            if patient_by_name[0]['patientName'].lower() == patientsName.lower():
-                return build_validation_result(True, None, None)
-            # print('only name is correct,elicit next slot to verify postal code')
-        if len(patient_by_name) != 0:
-            if patientsAddressCode == patient_by_name[0]['patientAddress']:
-                return build_validation_result(True,None,None)
-        if len(patient_by_nric) != 0:
-            if patientsAddressCode == patient_by_nric[0]['patientAddress']:
-                return build_validation_result(True, None, None)
-                # print('postal code okay name')
+
         else:
-            return build_validation_result(False,
-        "patientName","Both your NRIC and Name are incorrect, please re-enter your NRIC")
+            return build_validation_result(False, 'patientNRIC',
+                                           'Please make sure your NRIC entered is 9 digits, the first letter should should contain one of the alphabets in (STFG)'
+                                           'and end with alphabet.')
 
-    return build_validation_result(True, None, None)
 
-    """ --- Intents --- """
+def validate_code(patientAddressCode):
+    if patientAddressCode:
+        return build_validation_result(True, None, None)
+
+    # if patientAddressCode:
+    #     if (len(patientAddressCode) == 6):
+    #         return build_validation_result(True,None,None)
+    #     else:
+    #         return build_validation_result(False,'patientAddressCode','Enter a valid postal code')
+
+
+def validate_name(patientName):
+    if patientName:
+        return build_validation_result(True, None, None)
+    else:
+        return build_validation_result(False, 'patientName', 'Please make sure you have entered a correct name')
+
+
+def authentication(intent_request):
+    slots = get_slots(intent_request)
+    patientName = slots["patientName"]
+    patientNRIC = slots["patientNRIC"]
+    patientAddressCode = slots["patientAddressCode"]
+    # patientname = ""
+    # patientnric = ""
+    # allergies = ""
+    # medication = ""
+    # dosage = ""
+    # sideeffect = ""
+    output_session_attributes = intent_request['sessionAttributes'] if intent_request[
+                                                                           'sessionAttributes'] is not None else {}
+    if "retryCount" in output_session_attributes:
+        retryCount = int(output_session_attributes["retryCount"])
+    else:
+        retryCount = 0
+    source = intent_request['invocationSource']
+
+    if source == 'DialogCodeHook':
+        if not patientNRIC:
+            return elicit_slot(intent_request['sessionAttributes'],
+                               intent_request['currentIntent']['name'],
+                               slots,
+                               'patientNRIC',
+                               {"contentType": "PlainText", "content": "Please enter your NRIC, thank you."})
+        nric_validation_result = validate_nric(patientNRIC)
+        if not nric_validation_result['isValid']:
+            slots[nric_validation_result["violatedSlot"]] = None
+            return elicit_slot(intent_request['sessionAttributes'],
+                               intent_request['currentIntent']['name'],
+                               slots,
+                               nric_validation_result["violatedSlot"],
+                               nric_validation_result["message"])
+
+        if not patientName:
+            return elicit_slot(intent_request['sessionAttributes'],
+                               intent_request['currentIntent']['name'],
+                               slots,
+                               'patientName',
+                               {"contentType": "PlainText", "content": "Please enter your Name, thank you."})
+        name_validation_result = validate_name(patientName)
+        if not name_validation_result['isValid']:
+            slots[name_validation_result["violatedSlot"]] = None
+            return elicit_slot(intent_request['sessionAttributes'],
+                               intent_request['currentIntent']['name'],
+                               slots,
+                               name_validation_result["violatedSlot"],
+                               name_validation_result["message"])
+
+        if not patientAddressCode:
+            return elicit_slot(intent_request['sessionAttributes'],
+                               intent_request['currentIntent']['name'],
+                               slots,
+                               'patientAddressCode',
+                               {"contentType": "PlainText",
+                                "content": "Please enter your postal code and it should be 6 digits."})
+        code_validation_result = validate_code(patientAddressCode)
+        if not code_validation_result['isValid']:
+            slots[nric_validation_result["violatedSlot"]] = None
+            return elicit_slot(intent_request['sessionAttributes'],
+                               intent_request['currentIntent']['name'],
+                               slots,
+                               code_validation_result["violatedSlot"],
+                               code_validation_result["message"])
+
+        if 'validation' not in output_session_attributes.keys():
+            check_nric_name = by_nric_name(patientNRIC, patientName)
+            check_nric_postalcode = by_nric_code(patientNRIC, patientAddressCode)
+            check_name_postalcode = by_name_code(patientName, patientAddressCode)
+            checks = [check_nric_name, check_nric_postalcode, check_name_postalcode]
+            if any(checks):
+                output_session_attributes['validation'] = 'success'
+                if check_nric_name:
+                    patientName = patientName.capitalize()
+                    patientNRIC = patientNRIC.upper()
+                    params = {'patientNRIC': patientNRIC, 'patientName': patientName}
+                    django_url = "https://5aba30870df4.ngrok.io/bynricandname/"
+                    patient_data = requests.get(django_url, params=params).json()
+                    name = patient_data[0]['patientName']
+                    allergy = patient_data[0]['patientAllergies']
+                    medication = patient_data[0]['patientMedicationName']
+                    dosage = patient_data[0]['dosage']
+                    sideEffect = patient_data[0]['sideEffects']
+                    return close(intent_request['sessionAttributes'],
+                                 'Fulfilled',
+                                 {'contentType': 'PlainText',
+                                  'content': 'Hi {},your credentials are verified. Your medication prescribed is {}, the dosage is {}. Be reminded that'
+                                             'you are allergy to {} and the side effect for the medication is {}'.format(
+                                      name, medication,dosage,allergy, sideEffect)})
+
+                if check_nric_postalcode:
+                    patientNRIC = patientNRIC.upper()
+                    params = {'patientNRIC': patientNRIC, 'patientAddress': patientAddressCode}
+                    django_url = "https://5aba30870df4.ngrok.io/bynricandaddress/"
+                    patient_data = requests.get(django_url, params=params).json()
+                    name = patient_data[0]['patientName']
+                    allergy = patient_data[0]['patientAllergies']
+                    medication =patient_data[0]['patientMedicationName']
+                    dosage =patient_data[0]['dosage']
+                    sideEffect =patient_data[0]['sideEffects']
+                    return close(intent_request['sessionAttributes'],
+                                 'Fulfilled',
+                                 {'contentType': 'PlainText',
+                                  'content': 'Hi {},your credentials are verified. Your medication prescribed is {}, the dosage is {}. Be reminded that'
+                                             'you are allergy to {} and the side effect for the medication is {}'.format(
+                                      name, medication,dosage,allergy, sideEffect)})
+
+                if check_name_postalcode:
+                    patientName = patientName.capitalize()
+                    params = {'patientNRIC': patientNRIC, 'patientAddress': patientAddressCode}
+                    django_url = "https://5aba30870df4.ngrok.io/bynricandaddress/"
+                    patient_data = requests.get(django_url, params=params).json()
+                    name = patient_data[0]['patientName']
+                    allergy = patient_data[0]['patientAllergies']
+                    medication = patient_data[0]['patientMedicationName']
+                    dosage = patient_data[0]['dosage']
+                    sideEffect = patient_data[0]['sideEffects']
+                    return close(intent_request['sessionAttributes'],
+                                 'Fulfilled',
+                                 {'contentType': 'PlainText',
+                                  'content': 'Hi {},your credentials are verified. Your medication prescribed is {}, the dosage is {}. Be reminded that'
+                                             'you are allergy to {} and the side effect for the medication is {}'.format(
+                                     name, medication,dosage,allergy, sideEffect)})
+
+            else:
+                slots["patientName"] = None
+                slots["patientNRIC"] = None
+                slots["patientAddressCode"] = None
+                
+                return elicit_slot(intent_request['sessionAttributes'],
+                               intent_request['currentIntent']['name'],
+                               slots,
+                               'patientNRIC',
+                               {"contentType": "PlainText", "content": "Records don't match. Please enter your NRIC."})
+
+    """ --- Main handler --- """
+
+
+def lambda_handler(event, context):
+    """
+    Route the incoming request based on intent.
+    The JSON body of the request is provided in the event slot.
+    """
+    # By default, treat the user request as coming from the America/New_York time zone.
+    os.environ["TZ"] = "Asia/Singapore"
+    time.tzset()
+    logger.debug('event.bot.name={}'.format(event['bot']['name']))
+    logger.debug(event)
+    return dispatch(event)
 
 
 def dispatch(intent_request):
@@ -140,82 +295,3 @@ def dispatch(intent_request):
         return authentication(intent_request)
 
     raise Exception('Intent with name ' + intent_name + ' not supported')
-
-
-def authentication(intent_request):
-    slots = get_slots(intent_request)
-    patientName = slots["patientName"]
-    patientNRIC = slots["patientNRIC"]
-    patientAddressCode = slots["patientAddressCode"]
-    patientname = ""
-    patientnric = ""
-    allergies = ""
-    medication = ""
-    dosage = ""
-    sideeffect = ""
-
-    if patientName is not None and patientNRIC is not None:
-        patientName = patientName.capitalize()
-        patientNRIC = patientNRIC.upper()
-        empty = []
-        if get_patient(patientName, patientNRIC) != empty:
-            data = get_patient(patientName, patientNRIC)
-            patientname = data[0]['patientName']
-            patientnric = data[0]['patientNRIC']
-            allergies = data[0]['patientAllergies']
-            medication = data[0]['patientMedicationName']
-            dosage = data[0]['dosage']
-            sideeffect = data[0]['sideEffects']
-
-        # elif get_patient_by_code(patientAddressCode) != empty:
-        #     data = get_patient(patientAddressCode)
-        #     patientname = data[0]['patientName']
-        #     patientnric = data[0]['patientNRIC']
-        #     allergies = data[0]['patientAllergies']
-        #     medication = data[0]['patientMedicationName']
-        #     dosage = data[0]['dosage']
-        #     sideeffect = data[0]['sideEffects']
-
-    source = intent_request['invocationSource']
-
-    if source == 'DialogCodeHook':
-        # Perform basic validation on the supplied input slots.
-        # Use the elicitSlot dialog action to re-prompt for the first violation detected.
-        validation_result = validate_nric_name(patientName,patientNRIC,patientAddressCode)
-        if not validation_result['isValid']:
-            slots[validation_result['violatedSlot']] = None
-            return elicit_slot(intent_request['sessionAttributes'],
-                               intent_request['currentIntent']['name'],
-                               slots,
-                               validation_result['violatedSlot'],
-                               validation_result['message'])
-
-        output_session_attributes = intent_request['sessionAttributes'] if intent_request[
-                                                                               'sessionAttributes'] is not None else {}
-        return delegate(output_session_attributes, get_slots(intent_request))
-
-
-
-
-    notes = 'Thank you {},your NRIC is {}.Your medication prescribe is {}, ' \
-            'you are allergy to {}, the side effect is {} and the dosage is {}.'.format(patientname,patientnric,medication,allergies,sideeffect,dosage)
-    return close(intent_request['sessionAttributes'],
-                 'Fulfilled',
-                 {'contentType': 'PlainText',
-                  'content': notes})
-
-
-    """ --- Main handler --- """
-
-
-def lambda_handler(event, context):
-    """
-    Route the incoming request based on intent.
-    The JSON body of the request is provided in the event slot.
-    """
-    # By default, treat the user request as coming from the America/New_York time zone.
-    os.environ["TZ"] = "Asia/Singapore"
-    time.tzset()
-    logger.debug('event.bot.name={}'.format(event['bot']['name']))
-    logger.debug(event)
-    return dispatch(event)
