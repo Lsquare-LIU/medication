@@ -16,19 +16,19 @@ def by_nric_name(patientNRIC, patientName):
     patientName = patientName.capitalize()
     patientNRIC = patientNRIC.upper()
     params = {'patientNRIC': patientNRIC, 'patientName': patientName}
-    django_url = "https://5aba30870df4.ngrok.io/bynricandname/"
+    django_url = "https://1f01434759ce.ngrok.io/bynricandname/"
     if requests.get(django_url, params=params):
         return True
     else:
         return False
 
 
-def by_name_code(patientsName, patientsAddressCode):
-    if patientsName is None or patientsAddressCode is None:
+def by_name_code(patientName, patientAddressCode):
+    if patientName is None or patientAddressCode is None:
         return False
-    patientsName = patientsName.capitalize()
-    params = {'patientName': patientsName, 'patientAddress': patientsAddressCode}
-    django_url = "https://5aba30870df4.ngrok.io/bynameandaddress/"
+    patientsName = patientName.capitalize()
+    params = {'patientName': patientsName, 'patientAddress': patientAddressCode}
+    django_url = "https://1f01434759ce.ngrok.io/bynameandaddress/"
     if requests.get(django_url, params=params):
         return True
     else:
@@ -38,9 +38,9 @@ def by_name_code(patientsName, patientsAddressCode):
 def by_nric_code(patientNRIC, patientAddressCode):
     # if patientsNRIC is None or patientsAddressCode is None:
     #     print("Both nric and code not none")
-    patientsNRIC = patientNRIC.upper()
+    patientNRIC = patientNRIC.upper()
     params = {'patientNRIC': patientNRIC, 'patientAddress': patientAddressCode}
-    django_url = "https://5aba30870df4.ngrok.io/bynricandaddress/"
+    django_url = "https://1f01434759ce.ngrok.io/bynricandaddress/"
     if requests.get(django_url, params=params):
         return True
     else:
@@ -111,14 +111,13 @@ def validate_nric(patientNRIC):
 
 
 def validate_code(patientAddressCode):
-    if patientAddressCode:
-        return build_validation_result(True, None, None)
-
     # if patientAddressCode:
-    #     if (len(patientAddressCode) == 6):
-    #         return build_validation_result(True,None,None)
-    #     else:
-    #         return build_validation_result(False,'patientAddressCode','Enter a valid postal code')
+    #     return build_validation_result(True,None,None)
+    if len(patientAddressCode) == 6:
+        return build_validation_result(True, None, None)
+    else:
+        return build_validation_result(False, 'patientAddressCode', 'Enter a valid postal code, it should be 6 digits')
+
 
 
 def validate_name(patientName):
@@ -133,12 +132,7 @@ def authentication(intent_request):
     patientName = slots["patientName"]
     patientNRIC = slots["patientNRIC"]
     patientAddressCode = slots["patientAddressCode"]
-    # patientname = ""
-    # patientnric = ""
-    # allergies = ""
-    # medication = ""
-    # dosage = ""
-    # sideeffect = ""
+
     output_session_attributes = intent_request['sessionAttributes'] if intent_request[
                                                                            'sessionAttributes'] is not None else {}
     if "retryCount" in output_session_attributes:
@@ -187,7 +181,7 @@ def authentication(intent_request):
                                 "content": "Please enter your postal code and it should be 6 digits."})
         code_validation_result = validate_code(patientAddressCode)
         if not code_validation_result['isValid']:
-            slots[nric_validation_result["violatedSlot"]] = None
+            slots[code_validation_result["violatedSlot"]] = None
             return elicit_slot(intent_request['sessionAttributes'],
                                intent_request['currentIntent']['name'],
                                slots,
@@ -202,10 +196,10 @@ def authentication(intent_request):
             if any(checks):
                 output_session_attributes['validation'] = 'success'
                 if check_nric_name:
-                    patientName = patientName.capitalize()
                     patientNRIC = patientNRIC.upper()
+                    patientName = patientName.capitalize()
                     params = {'patientNRIC': patientNRIC, 'patientName': patientName}
-                    django_url = "https://5aba30870df4.ngrok.io/bynricandname/"
+                    django_url = "https://1f01434759ce.ngrok.io/bynricandname/"
                     patient_data = requests.get(django_url, params=params).json()
                     name = patient_data[0]['patientName']
                     allergy = patient_data[0]['patientAllergies']
@@ -222,7 +216,7 @@ def authentication(intent_request):
                 if check_nric_postalcode:
                     patientNRIC = patientNRIC.upper()
                     params = {'patientNRIC': patientNRIC, 'patientAddress': patientAddressCode}
-                    django_url = "https://5aba30870df4.ngrok.io/bynricandaddress/"
+                    django_url = "https://1f01434759ce.ngrok.io/bynricandaddress/"
                     patient_data = requests.get(django_url, params=params).json()
                     name = patient_data[0]['patientName']
                     allergy = patient_data[0]['patientAllergies']
@@ -238,8 +232,8 @@ def authentication(intent_request):
 
                 if check_name_postalcode:
                     patientName = patientName.capitalize()
-                    params = {'patientNRIC': patientNRIC, 'patientAddress': patientAddressCode}
-                    django_url = "https://5aba30870df4.ngrok.io/bynricandaddress/"
+                    params = {'patientName': patientName, 'patientAddress': patientAddressCode}
+                    django_url = "https://1f01434759ce.ngrok.io/bynameandaddress/"
                     patient_data = requests.get(django_url, params=params).json()
                     name = patient_data[0]['patientName']
                     allergy = patient_data[0]['patientAllergies']
@@ -254,11 +248,14 @@ def authentication(intent_request):
                                      name, medication,dosage,allergy, sideEffect)})
 
             else:
+                #seting slot values to none for re-entering
+                patientNRIC = None
                 slots["patientName"] = None
                 slots["patientNRIC"] = None
                 slots["patientAddressCode"] = None
-                
-                return elicit_slot(intent_request['sessionAttributes'],
+
+        if (patientNRIC is None) and ('validation' not in output_session_attributes.keys()):
+            return elicit_slot(intent_request['sessionAttributes'],
                                intent_request['currentIntent']['name'],
                                slots,
                                'patientNRIC',
