@@ -150,12 +150,20 @@ def authentication(intent_request):
                                {"contentType": "PlainText", "content": "Please enter your NRIC, thank you."})
         nric_validation_result = validate_nric(patientNRIC)
         if not nric_validation_result['isValid']:
+            retryCount += 1
+            output_session_attributes["retryCount"] = "{}".format(retryCount)
             slots[nric_validation_result["violatedSlot"]] = None
-            return elicit_slot(intent_request['sessionAttributes'],
-                               intent_request['currentIntent']['name'],
-                               slots,
-                               nric_validation_result["violatedSlot"],
-                               nric_validation_result["message"])
+            if (retryCount < 3):
+                return elicit_slot(intent_request['sessionAttributes'],
+                                   intent_request['currentIntent']['name'],
+                                   slots,
+                                   nric_validation_result["violatedSlot"],
+                                   nric_validation_result["message"])
+            else:
+                return close(intent_request['sessionAttributes'],
+                             'Fulfilled',
+                             {'contentType': 'PlainText',
+                              'content': 'Sorry you have exceeded the number of attempts.Please try again. Goodbye'})
 
         if not patientName:
             return elicit_slot(intent_request['sessionAttributes'],
